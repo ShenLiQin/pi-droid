@@ -169,6 +169,37 @@ describe("getScreenState()", () => {
     const state = await getScreenState();
     expect(state.screenOn).toBe(false);
   });
+
+  it("reads modern Android display/keyguard/density fields", async () => {
+    mockSequential(
+      "  mCurrentFocus=Window{abc u0 com.app/.Main}",
+      "  mInputShown=false",
+      "  Display State=ON\n    mScreenState=ON\n    mCurrentOrientation=0",
+      "  mWakefulness=Awake\nDisplay Power: com.android.server.power.PowerManagerService$1@a9e846a",
+      "    KeyguardServiceDelegate\n      showing=false\n    isKeyguardShowing=false",
+      "Physical density: 320",
+    );
+
+    const state = await getScreenState();
+    expect(state.screenOn).toBe(true);
+    expect(state.locked).toBe(false);
+    expect(state.density).toBe(320);
+    expect(state.orientation).toBe("portrait");
+  });
+
+  it("detects a locked screen via the modern keyguard delegate", async () => {
+    mockSequential(
+      "  mCurrentFocus=Window{abc u0 com.android.systemui/.Keyguard}",
+      "  mInputShown=false",
+      "  Display State=ON\n    mScreenState=ON",
+      "  mWakefulness=Awake",
+      "    KeyguardServiceDelegate\n      showing=true",
+      "Physical density: 320",
+    );
+
+    const state = await getScreenState();
+    expect(state.locked).toBe(true);
+  });
 });
 
 // ── getActivityStack ────────────────────────────────────────────────

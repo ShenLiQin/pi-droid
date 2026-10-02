@@ -7,6 +7,16 @@
  */
 
 import { adbShell, getForegroundPackage, type AdbExecOptions } from "./exec.js";
+import {
+  DISPLAY_STATE_CMD,
+  INPUT_METHOD_CMD,
+  KEYGUARD_STATE_CMD,
+  POWER_STATE_CMD,
+  parseDensity,
+  parseKeyboardVisible,
+  parseLocked,
+  parseScreenOn,
+} from "./display-state.js";
 
 // ── Types ───────────────────────────────────────────────────────────
 
@@ -58,27 +68,23 @@ function parseFocusLine(line: string): { packageName: string; activityName: stri
  * Get a comprehensive snapshot of the current screen state.
  */
 export async function getScreenState(options: AdbExecOptions = {}): Promise<ScreenState> {
-  // Run multiple dumpsys commands in parallel for speed
-  const [windowDump, inputMethodDump, displayDump, screenOnOutput, lockOutput] =
+  // Run the dumpsys/wm probes in parallel for speed. The first five calls keep
+  // their original order; `wm density` is appended for a reliable density read.
+  const [windowDump, inputMethodDump, displayDump, powerDump, keyguardDump, wmDensityDump] =
     await Promise.all([
       adbShell("dumpsys window", options),
-      adbShell("dumpsys input_method | grep mInputShown", options).catch(() => ""),
-      adbShell("dumpsys display | grep mCurrentOrientation", options).catch(() => ""),
-      adbShell("dumpsys power | grep 'Display Power'", options).catch(() => ""),
-      adbShell(
-        "dumpsys window | grep 'mDreamingLockscreen\\|isStatusBarKeyguard\\|showing='",
-        options,
-      ).catch(() => ""),
+      adbShell(INPUT_METHOD_CMD, options).catch(() => ""),
+      adbShell(DISPLAY_STATE_CMD, options).catch(() => ""),
+      adbShell(POWER_STATE_CMD, options).catch(() => ""),
+      adbShell(KEYGUARD_STATE_CMD, options).catch(() => ""),
+      adbShell("wm density", options).catch(() => ""),
     ]);
 
-  // Screen on/off
-  const screenOn = screenOnOutput.includes("state=ON");
+  // Screen on/off — prefers `dumpsys display`, falls back to power wakefulness.
+  const screenOn = parseScreenOn({ displayDump, powerDump });
 
-  // Lock screen
-  const locked =
-    lockOutput.includes("mDreamingLockscreen=true") ||
-    lockOutput.includes("isStatusBarKeyguard=true") ||
-    lockOutput.includes("showing=true");
+  // Lock screen — keyguard flags across Android versions.
+  const locked = parseLocked({ keyguardDump });
 
   // Foreground activity from mCurrentFocus
   let foregroundPackage = "unknown";
@@ -105,7 +111,7 @@ export async function getScreenState(options: AdbExecOptions = {}): Promise<Scre
   }
 
   // Keyboard visibility
-  const keyboardVisible = inputMethodDump.includes("mInputShown=true");
+  const keyboardVisible = parseKeyboardVisible(inputMethodDump);
 
   // Orientation
   let orientation: "portrait" | "landscape" = "portrait";
@@ -115,17 +121,8 @@ export async function getScreenState(options: AdbExecOptions = {}): Promise<Scre
     orientation = val === 1 || val === 3 ? "landscape" : "portrait";
   }
 
-  // Density
-  let density = 0;
-  const densityLine = windowDump
-    .split("\n")
-    .find((l) => l.includes("mBaseDisplayDensity") || l.includes("DisplayInfo{"));
-  if (densityLine) {
-    const densityMatch = densityLine.match(/density\s*(\d+)|mBaseDisplayDensity=(\d+)/);
-    if (densityMatch) {
-      density = parseInt(densityMatch[1] ?? densityMatch[2]);
-    }
-  }
+  // Density — prefer `wm density`, then window display info.
+  const density = parseDensity(wmDensityDump, windowDump);
 
   return {
     screenOn,
@@ -178,8 +175,8 @@ export async function getActivityStack(options: AdbExecOptions = {}): Promise<Ac
  */
 export async function isKeyboardVisible(options: AdbExecOptions = {}): Promise<boolean> {
   try {
-    const output = await adbShell("dumpsys input_method | grep mInputShown", options);
-    return output.includes("mInputShown=true");
+    const output = await adbShell(INPUT_METHOD_CMD, options);
+    return parseKeyboardVisible(output);
   } catch {
     return false;
   }

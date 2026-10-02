@@ -6,6 +6,7 @@
  */
 
 import { adbShell, type AdbExecOptions } from "./exec.js";
+import { parseLocked, readDisplayState } from "./display-state.js";
 import type { BatteryInfo, NetworkInfo, FullDeviceInfo } from "./types.js";
 
 /**
@@ -137,16 +138,8 @@ export async function getDeviceInfo(
 export async function isScreenLocked(
   options: AdbExecOptions = {},
 ): Promise<boolean> {
-  const output = await adbShell(
-    "dumpsys window | grep 'mDreamingLockscreen\\|isStatusBarKeyguard\\|showing='",
-    options,
-  );
-  // mDreamingLockscreen=true or showing=true indicates lock screen
-  return (
-    output.includes("mDreamingLockscreen=true") ||
-    output.includes("isStatusBarKeyguard=true") ||
-    output.includes("showing=true")
-  );
+  const { keyguardDump } = await readDisplayState(options);
+  return parseLocked({ keyguardDump });
 }
 
 /**
