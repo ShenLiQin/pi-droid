@@ -90,7 +90,10 @@ export interface SwipeOptions {
 export interface TypeOptions {
   /** Clear existing text before typing */
   clear?: boolean;
-  /** Use ADBKeyboard broadcast (required for Unicode) */
+  /**
+   * Force the ADBKeyboard broadcast path. Default: used automatically for
+   * non-ASCII (Unicode) text; ASCII uses the system `input text` command.
+   */
   useAdbKeyboard?: boolean;
 }
 

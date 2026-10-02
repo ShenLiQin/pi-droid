@@ -133,7 +133,8 @@ export function registerDeviceTools(pi: ExtensionAPI, adbConfig: Record<string, 
   pi.registerTool({
     name: "android_type",
     label: "Type Text",
-    description: "Type text on the device. Uses ADBKeyboard for Unicode support.",
+    description:
+      "Type text on the device. ASCII uses the system input command; Unicode uses ADBKeyboard.",
     parameters: Type.Object({
       text: Type.String({ description: "Text to type" }),
       clear_first: Type.Optional(Type.Boolean({ description: "Clear existing text before typing" })),

@@ -92,16 +92,16 @@ describe("swipe()", () => {
 });
 
 describe("typeText()", () => {
-  it("sends ADBKeyboard base64 broadcast by default", async () => {
+  it("uses `input text` for ASCII text by default", async () => {
     await typeText("hello");
-    const encoded = Buffer.from("hello", "utf-8").toString("base64");
-    expect(mockAdbShell).toHaveBeenCalledWith(
-      `am broadcast -a ADB_INPUT_B64 --es msg '${encoded}'`,
-      {},
-    );
+    expect(mockAdbShell).toHaveBeenCalledTimes(1);
+    expect(mockAdbShell).toHaveBeenCalledWith("input text 'hello'", {});
   });
 
-  it("encodes Unicode text correctly", async () => {
+  it("sends ADBKeyboard base64 broadcast for Unicode text", async () => {
+    mockAdbShell.mockImplementation(async (command) =>
+      command.includes("Registered Receivers") ? "adbkeyboard" : "",
+    );
     await typeText("cafe\u0301");
     const encoded = Buffer.from("cafe\u0301", "utf-8").toString("base64");
     expect(mockAdbShell).toHaveBeenCalledWith(
@@ -110,7 +110,19 @@ describe("typeText()", () => {
     );
   });
 
-  it("uses fallback input text when useAdbKeyboard is false", async () => {
+  it("forces the ADBKeyboard broadcast when useAdbKeyboard is true", async () => {
+    mockAdbShell.mockImplementation(async (command) =>
+      command.includes("Registered Receivers") ? "adbkeyboard" : "",
+    );
+    await typeText("hello", { useAdbKeyboard: true });
+    const encoded = Buffer.from("hello", "utf-8").toString("base64");
+    expect(mockAdbShell).toHaveBeenCalledWith(
+      `am broadcast -a ADB_INPUT_B64 --es msg '${encoded}'`,
+      { useAdbKeyboard: true },
+    );
+  });
+
+  it("uses input text when useAdbKeyboard is false", async () => {
     await typeText("hello", { useAdbKeyboard: false });
     expect(mockAdbShell).toHaveBeenCalledWith(
       "input text 'hello'",
@@ -118,7 +130,7 @@ describe("typeText()", () => {
     );
   });
 
-  it("escapes special characters in fallback mode", async () => {
+  it("escapes special characters in input text mode", async () => {
     await typeText("hi there!", { useAdbKeyboard: false });
     // single-quote escaping wraps the entire string safely
     expect(mockAdbShell).toHaveBeenCalledWith(
@@ -129,12 +141,11 @@ describe("typeText()", () => {
 
   it("clears existing text when clear option is set", async () => {
     await typeText("new", { clear: true });
-    // Should send 3 clear commands then the text
-    expect(mockAdbShell).toHaveBeenCalledTimes(4);
-    expect(mockAdbShell.mock.calls[0][0]).toBe("input keyevent KEYCODE_MOVE_HOME");
-    expect(mockAdbShell.mock.calls[1][0]).toContain("KEYCODE_SHIFT_LEFT");
-    expect(mockAdbShell.mock.calls[2][0]).toBe("input keyevent KEYCODE_DEL");
-    expect(mockAdbShell.mock.calls[3][0]).toContain("am broadcast -a ADB_INPUT_B64");
+    // Move to the end, delete a burst, then type the new value.
+    expect(mockAdbShell).toHaveBeenCalledTimes(3);
+    expect(mockAdbShell.mock.calls[0][0]).toBe("input keyevent KEYCODE_MOVE_END");
+    expect(mockAdbShell.mock.calls[1][0]).toContain("KEYCODE_DEL");
+    expect(mockAdbShell.mock.calls[2][0]).toBe("input text 'new'");
   });
 
   it("invalidates cache", async () => {
