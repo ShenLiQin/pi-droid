@@ -229,6 +229,18 @@ describe("isScreenLocked()", () => {
     const locked = await isScreenLocked();
     expect(locked).toBe(false);
   });
+
+  it("returns true for the modern KeyguardServiceDelegate showing flag", async () => {
+    mockAdbShell.mockResolvedValue("    KeyguardServiceDelegate\n      showing=true");
+    expect(await isScreenLocked()).toBe(true);
+  });
+
+  it("returns false for a hidden modern keyguard", async () => {
+    mockAdbShell.mockResolvedValue(
+      "    KeyguardServiceDelegate\n      showing=false\n    isKeyguardShowing=false",
+    );
+    expect(await isScreenLocked()).toBe(false);
+  });
 });
 
 // ── getRunningApps ──────────────────────────────────────────────────

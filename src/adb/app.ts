@@ -3,6 +3,7 @@
  */
 
 import { adbShell, getForegroundPackage, type AdbExecOptions } from "./exec.js";
+import { SCREEN_POWER_CMD, parseScreenOnDump } from "./display-state.js";
 import type { AppInfo } from "./types.js";
 
 /**
@@ -110,6 +111,7 @@ export async function wakeScreen(
 export async function isScreenOn(
   options: AdbExecOptions = {},
 ): Promise<boolean> {
-  const output = await adbShell("dumpsys power | grep 'Display Power'", options);
-  return output.includes("state=ON");
+  // Single shell call (matches the preflight/automation call-count contract).
+  const output = await adbShell(SCREEN_POWER_CMD, options);
+  return parseScreenOnDump(output);
 }

@@ -190,4 +190,14 @@ describe("isScreenOn()", () => {
     const result = await isScreenOn();
     expect(result).toBe(false);
   });
+
+  it("returns true for the modern mScreenState=ON field", async () => {
+    mockAdbShell.mockResolvedValue("  Display State=ON\n    mScreenState=ON");
+    expect(await isScreenOn()).toBe(true);
+  });
+
+  it("returns false for the modern mScreenState=OFF field", async () => {
+    mockAdbShell.mockResolvedValue("  Display State=OFF\n    mScreenState=OFF");
+    expect(await isScreenOn()).toBe(false);
+  });
 });
