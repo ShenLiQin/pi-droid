@@ -1,0 +1,86 @@
+/**
+ * App lifecycle management — launch, stop, check state.
+ */
+import { adbShell, getForegroundPackage } from "./exec.js";
+import { SCREEN_POWER_CMD, parseScreenOnDump } from "./display-state.js";
+/**
+ * Launch an app by package name.
+ */
+export async function launchApp(packageName, options = {}) {
+    if (options.activity) {
+        await adbShell(`am start -n ${packageName}/${options.activity}`, options);
+    }
+    else {
+        // Launch via monkey (finds main activity automatically)
+        await adbShell(`monkey -p ${packageName} -c android.intent.category.LAUNCHER 1`, options);
+    }
+}
+/**
+ * Force stop an app.
+ */
+export async function stopApp(packageName, options = {}) {
+    await adbShell(`am force-stop ${packageName}`, options);
+}
+/**
+ * Check if an app is running and in foreground.
+ */
+export async function getAppInfo(packageName, options = {}) {
+    // Check if process exists
+    let running = false;
+    try {
+        const ps = await adbShell(`pidof ${packageName}`, options);
+        running = ps.trim().length > 0;
+    }
+    catch {
+        running = false;
+    }
+    // Check if in foreground
+    const fg = await getForegroundPackage(options);
+    const foreground = fg === packageName;
+    return { packageName, running, foreground };
+}
+/**
+ * List installed packages matching a filter.
+ */
+export async function listPackages(filter, options = {}) {
+    const cmd = filter
+        ? `pm list packages | grep -i ${filter}`
+        : "pm list packages";
+    try {
+        const output = await adbShell(cmd, options);
+        return output
+            .split("\n")
+            .map((l) => l.replace("package:", "").trim())
+            .filter(Boolean);
+    }
+    catch {
+        return [];
+    }
+}
+/**
+ * Keep the screen on (disable auto-sleep).
+ */
+export async function keepScreenOn(options = {}) {
+    await adbShell("svc power stayon true", options);
+}
+/**
+ * Restore default screen timeout behavior.
+ */
+export async function restoreScreenTimeout(options = {}) {
+    await adbShell("svc power stayon false", options);
+}
+/**
+ * Wake up the device screen.
+ */
+export async function wakeScreen(options = {}) {
+    await adbShell("input keyevent KEYCODE_WAKEUP", options);
+}
+/**
+ * Check if screen is on.
+ */
+export async function isScreenOn(options = {}) {
+    // Single shell call (matches the preflight/automation call-count contract).
+    const output = await adbShell(SCREEN_POWER_CMD, options);
+    return parseScreenOnDump(output);
+}
+//# sourceMappingURL=app.js.map

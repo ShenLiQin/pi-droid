@@ -63,7 +63,6 @@
     "build": "tsc",
     "lint": "tsc --noEmit",
     "dev": "pi -e ./src/index.ts",
-    "prepare": "npm run build",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:unit": "vitest run tests/adb/ tests/plugins/ tests/notifications/ tests/tools/",
